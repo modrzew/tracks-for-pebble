@@ -3,14 +3,13 @@
     "capabilities": [
         "configurable"
     ],
-    "companyName": "modrzew@gmail.com",
-    "longName": "Tracks JS",
+    "companyName": "Modriv",
+    "longName": "Tracks",
     "projectType": "pebblejs",
     "resources": {
         "media": [
             {
                 "file": "images/menu_icon.png",
-                "menuIcon": true,
                 "name": "IMAGE_MENU_ICON",
                 "type": "bitmap"
             },
@@ -28,16 +27,32 @@
                 "file": "fonts/UbuntuMono-Regular.ttf",
                 "name": "MONO_FONT_14",
                 "type": "font"
+            },
+            {
+                "file": "images/tracks-8.png",
+                "name": "IMAGES_TRACKS_8_PNG",
+                "type": "bitmap"
+            },
+            {
+                "file": "images/tracks-16.png",
+                "name": "IMAGES_TRACKS_16_PNG",
+                "type": "bitmap"
+            },
+            {
+                "file": "images/tracks-28.png",
+                "menuIcon": true,
+                "name": "IMAGES_TRACKS_28_PNG",
+                "type": "bitmap"
             }
         ]
     },
     "sdkVersion": "3",
-    "shortName": "Tracks JS",
+    "shortName": "Tracks",
     "targetPlatforms": [
         "aplite",
         "basalt"
     ],
-    "uuid": "0c294f4f-b750-4ad4-93d5-542247d86972",
+    "uuid": "37f39425-b115-4c46-8633-e0eca2fd3a96",
     "versionCode": 1,
     "versionLabel": "1.0",
     "watchapp": {

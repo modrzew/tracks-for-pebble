@@ -1,11 +1,4 @@
-/**
- * Welcome to Pebble.js!
- *
- * This is where you write your app.
- */
-
 var UI = require('ui');
-var Vector2 = require('vector2');
 var Settings = require('settings');
 
 var api = require('api');
@@ -13,16 +6,18 @@ var appUI = require('app-ui');
 
 var CONFIG_URL = 'http://pebble.modriv.net/tracks/config';
 
-// var main = new UI.Card({
-//   title: 'Pebble.js',
-//   icon: 'images/menu_icon.png',
-//   subtitle: 'Hello World!',
-//   body: 'Press any button.',
-//   subtitleColor: 'indigo', // Named colors
-//   bodyColor: '#9a0036' // Hex colors
-// });
+var settingsCard = new UI.Card({
+    title: 'Settings',
+});
 
-// main.show();
+var itemCard = new UI.Card({
+    title: 'Todo',
+    subtitle: 'Due someday',
+    body: 'Note',
+    scrollable: true,
+    style: 'small',
+    backgroundColor: '#00FF55',
+});
 
 Settings.config(
     { url: CONFIG_URL },
@@ -32,7 +27,10 @@ Settings.config(
     }
 );
 
-var menu = new UI.Menu({sections: []});
+var menu = new UI.Menu({
+    sections: [],
+    highlightBackgroundColor: '#00AA55',
+});
 
 function initialize() {
     api.getTodos().then(function (contexts) {
@@ -48,19 +46,31 @@ function initialize() {
     });    
 }
 
+if (Object.keys(Settings.option()).length) {
+    settingsCard.hide();
+    initialize();
+} else {
+    settingsCard.show();
+}
+
+menu.on('select', function(e) {
+    var todo = e.item.original;
+    itemCard.title(todo.name);
+    itemCard.subtitle(todo.getDueString());
+    itemCard.body(todo.description);
+    if (todo.completed) {
+        itemCard.backgroundColor('#00AA55');
+    } else {
+        itemCard.backgroundColor('#FFAA55');
+    }
+    itemCard.show();
+});
+
 menu.on('longSelect', function(e) {
     var item = appUI.Todo2MenuItem(e.item.original);
-    item.title = 'Toggling...';
+    item.subtitle = 'Toggling...';
     menu.item(e.sectionIndex, e.itemIndex, item);
     api.toggle(e.item.original).then(function () {
         menu.item(e.sectionIndex, e.itemIndex, appUI.Todo2MenuItem(e.item.original));
     });
 });
-
-// main.on('click', 'down', function(e) {
-//   var card = new UI.Card();
-//   card.title('A Card');
-//   card.subtitle('Is a Window');
-//   card.body('The simplest window type in Pebble.js.');
-//   card.show();
-// });

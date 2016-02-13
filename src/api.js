@@ -48,7 +48,8 @@ function Todo (data) {
     var self = this;
     self.id = parseInt(data.id, 10);
     self.contextId = parseInt(data.contextId, 10);
-    self.name = data.name;
+    self._name = data.name;
+    setName();
     self.description = data.description;
     self.status = data.status;
     self.completed = self.status === 'completed';
@@ -58,8 +59,19 @@ function Todo (data) {
         self.due = null;
     }
     
+    function setName () {
+        if (self.completed) {
+            self.name = '\uD83D\uDC4D ' + self._name;
+        } else {
+            self.name = self._name;
+        }
+    }
+    
     self.getDueString = function getDueString () {
         var days, sAppendix = '';
+        if (self.completed) {
+            return 'done!';
+        }
         if (self.due === null) {
             return null;
         }
@@ -93,6 +105,7 @@ function Todo (data) {
             self.status = 'active';
             self.completed = false;
         }
+        setName();
     };
 }
 
