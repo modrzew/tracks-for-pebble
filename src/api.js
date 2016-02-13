@@ -1,22 +1,7 @@
+var Settings = require('settings');
+
 var xmldoc = require('xmldoc');
 var Promise = require('p');
-
-var config = require('config');
-
-// var config = {
-//     get: function () {
-//         console.log('AAAAAAAAAAAAa');
-//         var deferred = Promise.init();
-//         setTimeout(function(){
-//             deferred.resolve({
-//                 url: 'https://zadaniska.modriv.net/',
-//                 username: 'test',
-//                 password: 'testtest',
-//             });
-//         }, 1000);
-//         return deferred;
-//     }
-// };
 
 var CACHE = {
     todos: null,
@@ -25,30 +10,30 @@ var CACHE = {
 
 function ajax(method, endpoint) {
     var deferred = Promise.init();
-    config.get().then(function (config) {
-        var url = config.url + endpoint;
-        var req = new XMLHttpRequest();
-        console.log('Calling ' + method + ' ' + url);
-        req.open(method, url, true, config.username, config.password);
-        req.onload = function(e) {
-            if (req.readyState == 4 && req.status == 200) {
-                if(req.status == 200) {
-                    console.log('OK!');
-                    deferred.resolve(req.responseText);
-                } else {
-                    console.error('API error');
-                    console.log(req);
-                    deferred.reject();
-                }
+    var config = Settings.option();
+    var url = config.url + endpoint;
+    // I can't use Pebble's ajax library, because it doesn't allow for Basic auth
+    var req = new XMLHttpRequest();
+    console.log('Calling ' + method + ' ' + url);
+    req.open(method, url, true, config.username, config.password);
+    req.onload = function(e) {
+        if (req.readyState == 4 && req.status == 200) {
+            if(req.status == 200) {
+                console.log('OK!');
+                deferred.resolve(req.responseText);
+            } else {
+                console.error('API error');
+                console.log(req);
+                deferred.reject();
             }
-        };
-        req.onerror = function (e) {
-            console.error('API error');
-            console.log(e);
-            deferred.reject();
-        };
-        req.send(null);
-    });
+        }
+    };
+    req.onerror = function (e) {
+        console.error('API error');
+        console.log(e);
+        deferred.reject();
+    };
+    req.send(null);
     return deferred;
 }
 
@@ -140,7 +125,6 @@ function getTodos() {
         deferred.resolve(CACHE.todos);
     } else {
         getContexts().then(function (contexts) {
-            console.log('Contexts: ' + contexts);
             var contextsDict = {};
             for (var i=0; i<contexts.length; i++) {
                 var context = contexts[i];
@@ -160,8 +144,6 @@ function getTodos() {
                         description: item.childNamed('notes').val,
                         status: item.childNamed('state').val,
                     });
-                    console.log(todo.contextId);
-                    console.log(contextsDict[todo.contextId]);
                     contextsDict[todo.contextId].todos.push(todo);
                 }
                 for (i=0; i<contexts.length; i++) {
