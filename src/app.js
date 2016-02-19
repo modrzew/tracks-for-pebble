@@ -34,6 +34,8 @@ var menu = new UI.Menu({
 
 function initialize() {
     api.getTodos().then(function (contexts) {
+        console.log('Resolved');
+        console.log(JSON.stringify(contexts));
         for (var i=0; i<contexts.length; i++) {
             var context = contexts[i];
             var items = [];

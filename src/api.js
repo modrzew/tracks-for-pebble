@@ -3,10 +3,93 @@ var Settings = require('settings');
 var xmldoc = require('xmldoc');
 var Promise = require('p');
 
-var CACHE = {
-    todos: null,
-    contexts: null,
-};
+function Cache () {
+    var self = this;
+    self.loaded = false;
+    // Raw values
+    var values = {
+        todos: [],
+        contexts: [],
+        lastUpdated: null
+    };
+    // Prepared & normalized values
+    var normalized = null;
+    self.get = function () {
+        console.log(values.lastUpdated);
+        if (!values.lastUpdated) {
+            return null;
+        }
+        var then = new Date();
+        then.setSeconds(then.getSeconds() - 60);
+        console.log(then);
+        console.log(values.lastUpdated < then);
+        if (values.lastUpdated < then) {
+            return null;
+        }
+        return normalized;
+    };
+    self.load = function () {
+        console.log('Loading cache');
+        var contexts = Settings.data('contexts');
+        var todos = Settings.data('todos');
+        var lastUpdated = Settings.data('lastUpdated');
+        console.log(contexts);
+        console.log(todos);
+        console.log(lastUpdated);
+        if (!!contexts && !!todos && !!lastUpdated) {
+            console.log('Assigning!');
+            values.contexts = contexts;
+            values.todos = todos;
+            values.lastUpdated = new Date(lastUpdated);
+            rehash();            
+        }
+        self.loaded = true;
+        console.log('CAche loaded');
+    };
+    self.save = function (todos, contexts) {
+        // Todos
+        var toSave = [];
+        for (var i=0; i<todos.length; i++) {
+            toSave.push(todos[i].toDict());
+        }
+        Settings.data('todos', toSave);
+        values.todos = toSave;
+        // Contexts
+        toSave = [];
+        for (i=0; i<contexts.length; i++) {
+            toSave.push(contexts[i].toDict());
+        }
+        Settings.data('contexts', toSave);
+        values.contexts = toSave;
+        // Date
+        values.lastUpdated = new Date();
+        Settings.data('lastUpdated', values.lastUpdated.toISOString());
+        rehash();
+    };
+    
+    function rehash () {
+        normalized = [];
+        var contextsDict = {};
+        var i;
+        for(i=0; i<values.contexts.length; i++) {
+            var raw = values.contexts[i];
+            var context = new Context(raw.id, raw.name);
+            contextsDict[context.id] = context;
+            context.todos = [];
+            normalized.push(context);
+        }
+        console.log(JSON.stringify(contextsDict));
+        for(i=0; i<values.todos.length; i++) {
+            console.log('Raw: ' + JSON.stringify(values.todos[i]));
+            var todo = new Todo(values.todos[i]);
+            console.log('Todo ID: ' + todo.contextId);
+            console.log('Context: ' + contextsDict[todo.contextId]);
+            contextsDict[todo.contextId].todos.push(todo);
+        }
+    }
+}
+
+var CACHE = new Cache();
 
 function ajax(method, endpoint) {
     var deferred = Promise.init();
@@ -42,6 +125,13 @@ function Context (id, name) {
     self.id = parseInt(id, 10);
     self.name = name;
     self.todos = [];
+
+    self.toDict = function () {
+        return {
+            id: self.id,
+            name: self.name
+        };
+    };
 }
 
 function Todo (data) {
@@ -107,36 +197,51 @@ function Todo (data) {
         }
         setName();
     };
+    
+    self.toDict = function () {
+        return {
+            id: self.id,
+            contextId: self.contextId,
+            name: self._name,
+            description: self.description,
+            status: self.status,
+            due: self.due !== null ? self.due.toISOString() : '',
+        };
+    };
 }
 
 function getContexts () {
     var deferred = Promise.init();
-    if (CACHE.contexts !== null) {
-        deferred.resolve(CACHE.contexts);
-    } else {
-        ajax('GET', 'contexts.xml').then(function (raw) {
-            var tree = new xmldoc.XmlDocument(raw);
-            var contexts = tree.childrenNamed('context');
-            var result = [];
-            for (var i=0; i<contexts.length; i++) {
-                var item = contexts[i];
-                result.push(new Context(
-                    item.childNamed('id').val,
-                    item.childNamed('name').val
-                ));
-            }
-            CACHE.contexts = result;
-            deferred.resolve(CACHE.contexts);
-        });
-    }
+    ajax('GET', 'contexts.xml').then(function (raw) {
+        var tree = new xmldoc.XmlDocument(raw);
+        var contexts = tree.childrenNamed('context');
+        var result = [];
+        for (var i=0; i<contexts.length; i++) {
+            var item = contexts[i];
+            result.push(new Context(
+                item.childNamed('id').val,
+                item.childNamed('name').val
+            ));
+        }
+        deferred.resolve(result);
+    });
     return deferred;
 }
 
 function getTodos() {
     var deferred = Promise.init();
-    if (CACHE.todos !== null) {
-        deferred.resolve(CACHE.todos);
+    if (!CACHE.loaded) {
+        CACHE.load();
+    }
+    var fromCache = CACHE.get();
+    if (fromCache !== null) {
+        console.log('Cache found!');
+        console.log(JSON.stringify(fromCache));
+        setTimeout(function () {
+            deferred.resolve(fromCache);
+        });
     } else {
+        console.log('Cache not found!');
         getContexts().then(function (contexts) {
             var contextsDict = {};
             for (var i=0; i<contexts.length; i++) {
@@ -145,10 +250,10 @@ function getTodos() {
             }
             ajax('GET', 'todos.xml?limit_to_active_todos=1').then(function (raw) {
                 var tree = new xmldoc.XmlDocument(raw);
-                var todos = tree.childrenNamed('todo');
-                var result = [];
-                for (var i=0; i<todos.length; i++) {
-                    var item = todos[i];
+                var todosTree = tree.childrenNamed('todo');
+                var todos = [];
+                for (var i=0; i<todosTree.length; i++) {
+                    var item = todosTree[i];
                     var todo = new Todo({
                         id: item.childNamed('id').val,
                         contextId: item.childNamed('context-id').val,
@@ -158,15 +263,17 @@ function getTodos() {
                         status: item.childNamed('state').val,
                     });
                     contextsDict[todo.contextId].todos.push(todo);
+                    todos.push(todo);
                 }
+                var result = [];
                 for (i=0; i<contexts.length; i++) {
                     var context = contexts[i];
                     if (context.todos.length) {
                         result.push(context);
                     }
                 }
-                CACHE.todos = result;
-                deferred.resolve(CACHE.todos);
+                CACHE.save(todos, result);
+                deferred.resolve(CACHE.get());
             });
         });
     }
