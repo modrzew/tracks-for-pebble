@@ -22,7 +22,11 @@ var itemCard = new UI.Card({
 Settings.config(
     { url: CONFIG_URL },
     function (e) {
+        settingsCard.show();
+    },
+    function (e) {
         console.log('Settings saved!');
+        settingsCard.hide();
         initialize();
     }
 );

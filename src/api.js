@@ -3,6 +3,8 @@ var Settings = require('settings');
 var xmldoc = require('xmldoc');
 var Promise = require('p');
 
+var CACHE_FOR = 900; // 15 minutes
+
 function Cache () {
     var self = this;
     self.loaded = false;
@@ -20,7 +22,7 @@ function Cache () {
             return null;
         }
         var then = new Date();
-        then.setSeconds(then.getSeconds() - 60);
+        then.setSeconds(then.getSeconds() - CACHE_FOR);
         console.log(then);
         console.log(values.lastUpdated < then);
         if (values.lastUpdated < then) {
@@ -92,32 +94,32 @@ function Cache () {
 var CACHE = new Cache();
 
 function ajax(method, endpoint) {
-    var deferred = Promise.init();
-    var config = Settings.option();
-    var url = config.url + endpoint;
-    // I can't use Pebble's ajax library, because it doesn't allow for Basic auth
-    var req = new XMLHttpRequest();
-    console.log('Calling ' + method + ' ' + url);
-    req.open(method, url, true, config.username, config.password);
-    req.onload = function(e) {
-        if (req.readyState == 4 && req.status == 200) {
-            if(req.status == 200) {
-                console.log('OK!');
-                deferred.resolve(req.responseText);
-            } else {
-                console.error('API error');
-                console.log(req);
-                deferred.reject();
+    return new Promise(function(resolve, reject) {
+        var config = Settings.option();
+        var url = config.url + endpoint;
+        // I can't use Pebble's ajax library, because it doesn't allow for Basic auth
+        var req = new XMLHttpRequest();
+        console.log('Calling ' + method + ' ' + url);
+        req.open(method, url, true, config.username, config.password);
+        req.onload = function(e) {
+            if (req.readyState == 4 && req.status == 200) {
+                if(req.status == 200) {
+                    console.log('OK!');
+                    resolve(req.responseText);
+                } else {
+                    console.error('API error');
+                    console.log(req);
+                    reject();
+                }
             }
-        }
-    };
-    req.onerror = function (e) {
-        console.error('API error');
-        console.log(e);
-        deferred.reject();
-    };
-    req.send(null);
-    return deferred;
+        };
+        req.onerror = function (e) {
+            console.error('API error');
+            console.log(e);
+            reject();
+        };
+        req.send(null);
+    });
 }
 
 function Context (id, name) {
@@ -211,73 +213,67 @@ function Todo (data) {
 }
 
 function getContexts () {
-    var deferred = Promise.init();
-    ajax('GET', 'contexts.xml').then(function (raw) {
-        var tree = new xmldoc.XmlDocument(raw);
-        var contexts = tree.childrenNamed('context');
-        var result = [];
-        for (var i=0; i<contexts.length; i++) {
-            var item = contexts[i];
-            result.push(new Context(
-                item.childNamed('id').val,
-                item.childNamed('name').val
-            ));
-        }
-        deferred.resolve(result);
+    return new Promise(function(resolve, reject) {
+        ajax('GET', 'contexts.xml').then(function (raw) {
+            var tree = new xmldoc.XmlDocument(raw);
+            var contexts = tree.childrenNamed('context');
+            var result = [];
+            for (var i=0; i<contexts.length; i++) {
+                var item = contexts[i];
+                result.push(new Context(
+                    item.childNamed('id').val,
+                    item.childNamed('name').val
+                ));
+            }
+            resolve(result);
+        });
     });
-    return deferred;
 }
 
 function getTodos() {
-    var deferred = Promise.init();
+    return new Promise(function(resolve, reject) {
+        ajax('GET', 'todos.xml?limit_to_active_todos=1').then(function (raw) {
+            var tree = new xmldoc.XmlDocument(raw);
+            var todosTree = tree.childrenNamed('todo');
+            var todos = [];
+            for (var i=0; i<todosTree.length; i++) {
+                var item = todosTree[i];
+                var todo = new Todo({
+                    id: item.childNamed('id').val,
+                    contextId: item.childNamed('context-id').val,
+                    name: item.childNamed('description').val,
+                    due: item.childNamed('due').val,
+                    description: item.childNamed('notes').val,
+                    status: item.childNamed('state').val,
+                });
+                todos.push(todo);
+            }
+            resolve(todos);
+        });
+    });
+}
+
+function getAll() {
+    // Initialize cache upon first call
     if (!CACHE.loaded) {
         CACHE.load();
     }
-    var fromCache = CACHE.get();
-    if (fromCache !== null) {
-        console.log('Cache found!');
-        console.log(JSON.stringify(fromCache));
-        setTimeout(function () {
-            deferred.resolve(fromCache);
-        });
-    } else {
+    console.log(Promise);
+    return new Promise(function(resolve, reject) {
+        var fromCache = CACHE.get();
+        if (fromCache !== null) {
+            console.log('Cache found!');
+            console.log(JSON.stringify(fromCache));
+            return resolve(fromCache);
+        }
         console.log('Cache not found!');
-        getContexts().then(function (contexts) {
-            var contextsDict = {};
-            for (var i=0; i<contexts.length; i++) {
-                var context = contexts[i];
-                contextsDict[context.id] = context;
-            }
-            ajax('GET', 'todos.xml?limit_to_active_todos=1').then(function (raw) {
-                var tree = new xmldoc.XmlDocument(raw);
-                var todosTree = tree.childrenNamed('todo');
-                var todos = [];
-                for (var i=0; i<todosTree.length; i++) {
-                    var item = todosTree[i];
-                    var todo = new Todo({
-                        id: item.childNamed('id').val,
-                        contextId: item.childNamed('context-id').val,
-                        name: item.childNamed('description').val,
-                        due: item.childNamed('due').val,
-                        description: item.childNamed('notes').val,
-                        status: item.childNamed('state').val,
-                    });
-                    contextsDict[todo.contextId].todos.push(todo);
-                    todos.push(todo);
-                }
-                var result = [];
-                for (i=0; i<contexts.length; i++) {
-                    var context = contexts[i];
-                    if (context.todos.length) {
-                        result.push(context);
-                    }
-                }
-                CACHE.save(todos, result);
-                deferred.resolve(CACHE.get());
-            });
+        Promise.all([getTodos(), getContexts()]).then(function(results) {
+            var todos = results[0];
+            var contexts = results[1];
+            CACHE.save(todos, contexts);
+            resolve(CACHE.get());
         });
-    }
-    return deferred;
+    });
 }
 
 function toggle (todo) {
@@ -295,6 +291,6 @@ function toggle (todo) {
 }
 
 module.exports = {
-    getTodos: getTodos,
+    getTodos: getAll,
     toggle: toggle,
 };
