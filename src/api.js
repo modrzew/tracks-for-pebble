@@ -258,7 +258,6 @@ function getAll() {
     if (!CACHE.loaded) {
         CACHE.load();
     }
-    console.log(Promise);
     return new Promise(function(resolve, reject) {
         var fromCache = CACHE.get();
         if (fromCache !== null) {

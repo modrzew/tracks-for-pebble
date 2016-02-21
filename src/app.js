@@ -40,15 +40,23 @@ function initialize() {
     api.getTodos().then(function (contexts) {
         console.log('Resolved');
         console.log(JSON.stringify(contexts));
+        var current = 0;
         for (var i=0; i<contexts.length; i++) {
             var context = contexts[i];
+            if (!context.todos.length) {
+                continue;
+            }
             var items = [];
             for (var j=0; j<context.todos.length; j++) {
                 items.push(appUI.Todo2MenuItem(context.todos[j]));
             }
-            menu.section(i, {title: context.name, items: items});
+            menu.section(current, {title: context.name, items: items});
+            current++;
         }
-        menu.show();
+        // Wait for a bit for menu to properly initialize
+        setTimeout(function(){
+            menu.show();
+        }, 250);
     });    
 }
 
