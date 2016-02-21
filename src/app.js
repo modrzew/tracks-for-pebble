@@ -10,6 +10,10 @@ var settingsCard = new UI.Card({
     title: 'Settings',
 });
 
+var splashCard = new UI.Card({
+    title: 'Initializing...',
+});
+
 var itemCard = new UI.Card({
     title: 'Todo',
     subtitle: 'Due someday',
@@ -37,9 +41,8 @@ var menu = new UI.Menu({
 });
 
 function initialize() {
+    splashCard.show();
     api.getTodos().then(function (contexts) {
-        console.log('Resolved');
-        console.log(JSON.stringify(contexts));
         var current = 0;
         for (var i=0; i<contexts.length; i++) {
             var context = contexts[i];
@@ -48,6 +51,9 @@ function initialize() {
             }
             var items = [];
             for (var j=0; j<context.todos.length; j++) {
+                if (context.todos[j].completed) {
+                    continue;
+                }
                 items.push(appUI.Todo2MenuItem(context.todos[j]));
             }
             menu.section(current, {title: context.name, items: items});
@@ -56,6 +62,7 @@ function initialize() {
         // Wait for a bit for menu to properly initialize
         setTimeout(function(){
             menu.show();
+            splashCard.hide();
         }, 250);
     });    
 }
