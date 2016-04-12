@@ -102,7 +102,12 @@ function ajax(method, endpoint) {
         // I can't use Pebble's ajax library, because it doesn't allow for Basic auth
         var req = new XMLHttpRequest();
         console.log('Calling ' + method + ' ' + url);
+        req.timeout = 5000;
         req.open(method, url, true, config.username, config.password);
+        req.ontimeout = function(e) {
+            console.log('Timeout!');
+            reject('Timeout');
+        };
         req.onload = function(e) {
             if (req.readyState == 4 && req.status == 200) {
                 if(req.status == 200) {
@@ -111,14 +116,14 @@ function ajax(method, endpoint) {
                 } else {
                     console.error('API error');
                     console.log(req);
-                    reject();
+                    reject(req.responseText);
                 }
             }
         };
         req.onerror = function (e) {
             console.error('API error');
             console.log(e);
-            reject();
+            reject(e);
         };
         req.send(null);
     });
@@ -181,6 +186,8 @@ function getAll() {
             var contexts = results[1];
             CACHE.save(todos, contexts);
             resolve(CACHE.get());
+        }).catch(function(error) {
+            console.error(error);
         });
     });
 }
